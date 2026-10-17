@@ -1,5 +1,5 @@
-ringbuffer:
-	g++-16 -std=c++23 -Wall -Wpedantic -o test test.cpp
+ring_buffer_test:
+	g++-16 -std=c++23 -Wall -Wpedantic -o ring_buffer_test ring_buffer_test.cpp
 
 clean:
-	rm test
+	rm ring_buffer_test 
