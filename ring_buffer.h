@@ -1,10 +1,35 @@
+#pragma once
+
 #include <cstddef>
 #include <bit>
-#include <cstring>
 #include <utility>
 
+/*
+ *
+ * Ring Buffer invariant: Head always points to the frontmost element inserted, 
+ * and tail points to one-past the backmost element inserted. Here are a few
+ * examples to illustrate.
+ *
+ * Example 1: at size 0, head = 0, tail = 0. Pushing front will increment tail
+ * After: data[0] = elem, tail = 1, head = 0. Invariant holds.
+ *
+ * Example 2: at size = 1, head = 0, tail = 1. Pushing front will first 
+ * decrement head, and then place an element.
+ * After: size = 2, tail = 1, head = capacity - 1. Invariant holds.
+ *
+ * Example 3: at size = full, tail = n, head = n. Pushing front will first
+ * decrement head, place new element, overwriting backmost element, then
+ * tail will also be decremented.
+ * After: size is the same, tail = n-1, head = n-1. In a way, tail is still
+ * pointing to "one-past the backmost element", and head is pointing at the
+ * frontmost element (the one just inserted). Invariant holds.
+ *
+ */
 template<typename T>
 class RingBuffer {
+
+  class Const_Iterator;
+
   class Iterator {
     T* m_Base;
     size_t m_Offset;
@@ -39,13 +64,19 @@ class RingBuffer {
       return *(m_Base + (m_Offset & (m_Capacity - 1)));
     }
 
-    bool operator<(const Iterator& rhs) {
-      return (m_Base + m_Offset) < (rhs.m_Base + rhs.m_Offset); 
+    bool operator<(const Iterator& rhs) const noexcept {
+      return static_cast<ptrdiff_t>(m_Offset - rhs.m_Offset) < 0; 
     }
 
-    bool operator!=(const Iterator& rhs) {
-      return (m_Base + m_Offset) != (rhs.m_Base + rhs.m_Offset); 
+    bool operator!=(const Iterator& rhs) const noexcept {
+      return (*this < rhs) || (rhs < *this); 
     }
+
+    bool operator==(const Iterator& rhs) const noexcept {
+      return !(*this != rhs); 
+    }
+
+    friend class Const_Iterator;
 
   };
 
@@ -89,16 +120,15 @@ class RingBuffer {
       return *(m_Base + (m_Offset & (m_Capacity - 1)));
     }
 
-    bool operator<(const Const_Iterator& rhs) const {
-      return (m_Base + m_Offset ) < 
-        (rhs.m_Base + rhs.m_Offset );
+    bool operator<(const Const_Iterator& rhs) const noexcept {
+      return static_cast<ptrdiff_t>(m_Offset - rhs.m_Offset) < 0;
     }
 
-    bool operator!=(const Const_Iterator& rhs) const {
+    bool operator!=(const Const_Iterator& rhs) const noexcept {
       return (*this < rhs) || (rhs < *this);
     }
 
-    bool operator==(const Const_Iterator& rhs) const {
+    bool operator==(const Const_Iterator& rhs) const noexcept {
       return !(*this != rhs); 
     }
   };
@@ -153,7 +183,7 @@ class RingBuffer {
   // *************************************************************************
 
   // Constructor
-  RingBuffer(size_t capacity = DEFAULT_CAP) 
+  explicit RingBuffer(size_t capacity = DEFAULT_CAP) 
     : m_Capacity { std::bit_ceil(capacity) }
     , m_Head { 0uz }
     , m_Tail { 0uz }
@@ -176,6 +206,7 @@ class RingBuffer {
   }
 
   // Move Constructor
+  // Postcondition: other should only be assigned to or destroyed
   RingBuffer(RingBuffer&& other) noexcept
     : m_Capacity { other.m_Capacity }
     , m_Head { other.m_Head }
@@ -205,15 +236,20 @@ class RingBuffer {
     delete[] m_Data;
   }
 
+  // Precondition: !empty()
   void pop_front() {
     m_Head++;
     m_Size--;
   }
 
+  // Precondition: !empty()
   void pop_back() {
     m_Tail--;
     m_Size--;
   }
+  
+  // Pushing when the buffer is full wraps and overwrites tail element
+  // Tail is still valid after
   void push_front(T val) {
     if(m_Size == 0) {
       ++m_Tail;
@@ -229,6 +265,8 @@ class RingBuffer {
     m_Data[head()] = val;
   }
 
+  // Pushing when the buffer is full wraps and overwrites head element
+  // Head is still valid after
   void push_back(T val) {
     m_Data[tail()] = val;
     m_Tail++;
@@ -239,43 +277,49 @@ class RingBuffer {
     }
   }
 
+  // Precondition: !empty()
   T& front() noexcept {
     return m_Data[head()];
   }
   
+  // Precondition: !empty()
   const T& front() const noexcept {
     return m_Data[head()];
   }
 
+  // Precondition: !empty()
   T& back() noexcept {
     return m_Data[(m_Tail - 1) & (m_Capacity - 1)];
   }
   
+  // Precondition: !empty()
   const T& back() const noexcept {
     return m_Data[(m_Tail - 1) & (m_Capacity - 1)];
   }
 
+  // Precondition: where < m_Size 
   const T& operator[](size_t where) const noexcept {
     return m_Data[(head() + where) & (m_Capacity-1)];
   }
 
+  // Precondition: !empty()
   T& operator[](size_t where) noexcept {
     return m_Data[(head() + where) & (m_Capacity-1)];
   }
 
-  size_t size() const noexcept {
+  [[nodiscard]] size_t size() const noexcept {
     return m_Size;
   }
   
-  size_t capacity() const noexcept {
+  [[nodiscard]] size_t capacity() const noexcept {
     return m_Capacity;
   }
 
-  bool isEmpty() const noexcept {
+  [[nodiscard]] bool empty() const noexcept {
     return m_Size == 0;
   }
 
-  bool isFull() const noexcept {
+  [[nodiscard]] bool full() const noexcept {
     return m_Size == m_Capacity;
   }
 
