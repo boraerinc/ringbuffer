@@ -1,6 +1,7 @@
 #include <cstddef>
 #include <bit>
 #include <cstring>
+#include <utility>
 
 template<typename T>
 class RingBuffer {
@@ -164,12 +165,14 @@ class RingBuffer {
   // Copy Constructor
   RingBuffer(const RingBuffer& other) 
     : m_Capacity { other.m_Capacity }
-    , m_Head { other.m_Head }
-    , m_Tail { other.m_Tail }
+    , m_Head { 0uz }
+    , m_Tail { other.m_Size }
     , m_Size { other.m_Size }
     , m_Data { new T[other.m_Capacity] }
   {
-    std::memcpy(m_Data, other.m_Data, m_Capacity);
+    for(auto it{0uz}; it < other.m_Size; ++it) {
+      m_Data[it] = other[it];
+    }
   }
 
   // Move Constructor
@@ -183,38 +186,18 @@ class RingBuffer {
     other.clearForMove();
   }
 
-  // assignment
-  RingBuffer& operator=(const RingBuffer& other) {
-    if(this !=  &other) {
-      delete[] m_Data;
-      m_Data = new T[other.m_Capacity];
-      m_Capacity = other.m_Capacity;
-      m_Head = other.m_Head;
-      m_Tail = other.m_Head;
-      m_Size = 0uz;
-      
-      for(auto val : other) {
-        push_back(val);
-      }
-    }
+  // assignment (Copy and swap idiom for exception safety)
+  RingBuffer& operator=(RingBuffer other) {
+    swap(other);
     return *this;
   }
 
-  // Move assignment
-  RingBuffer& operator=(RingBuffer&& other) noexcept {
-    if(this != &other) {
-      delete[] m_Data;
-
-      m_Capacity = other.m_Capacity;
-      m_Head = other.m_Head;
-      m_Tail = other.m_Tail;
-      m_Size = other.m_Size;
-      m_Data = other.m_Data;
-      
-      other.clearForMove();
-    }
-
-    return *this;
+  void swap(RingBuffer& other) noexcept {
+    std::swap(m_Tail, other.m_Tail);
+    std::swap(m_Head, other.m_Head);
+    std::swap(m_Size, other.m_Size);
+    std::swap(m_Data, other.m_Data);
+    std::swap(m_Capacity, other.m_Capacity);
   }
 
   //Destructor
