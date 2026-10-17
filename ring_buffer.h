@@ -4,8 +4,6 @@
 
 template<typename T>
 class RingBuffer {
-
-
   class Iterator {
     T* m_Base;
     size_t m_Offset;
@@ -14,15 +12,15 @@ class RingBuffer {
   public:
     Iterator(T* base, size_t capacity, size_t offset) 
       : m_Base{base}
-      , m_Capacity{capacity}
       , m_Offset(offset) 
+      , m_Capacity{capacity}
       
     {}
 
     Iterator(const Iterator& rhs) 
       : m_Base{rhs.m_Base}
-      , m_Capacity{rhs.m_Capacity}
       , m_Offset(rhs.m_Offset) 
+      , m_Capacity{rhs.m_Capacity}
     {}
 
     Iterator& operator++() {
@@ -30,10 +28,10 @@ class RingBuffer {
       return *this;
     }
 
-    Iterator& operator++(int) {
+    Iterator operator++(int) {
       Iterator ret{*this};
       m_Offset++;
-      return *ret;
+      return ret;
     }
 
     T& operator*() const {
@@ -80,10 +78,10 @@ class RingBuffer {
       return *this;
     }
 
-    Const_Iterator& operator++(int) {
+    Const_Iterator operator++(int) {
       Const_Iterator ret{*this};
       m_Offset++;
-      return *ret;
+      return ret;
     }
 
     const T& operator*() const {
@@ -91,8 +89,8 @@ class RingBuffer {
     }
 
     bool operator<(const Const_Iterator& rhs) const {
-      return (m_Base + (m_Offset & (m_Capacity - 1))) < 
-        (rhs.m_Base + (rhs.m_Offset & (rhs.m_Capacity - 1)));
+      return (m_Base + m_Offset ) < 
+        (rhs.m_Base + rhs.m_Offset );
     }
 
     bool operator!=(const Const_Iterator& rhs) const {
@@ -111,7 +109,7 @@ class RingBuffer {
   T* m_Data;
 
   size_t head() const noexcept {
-    return (m_Head+1) & (m_Capacity - 1);
+    return (m_Head) & (m_Capacity - 1);
   }
 
   size_t tail() const noexcept {
@@ -129,25 +127,25 @@ class RingBuffer {
 
   public:
   Iterator begin() {
-    return Iterator(m_Data,  m_Capacity, (m_Head + 1) & (m_Capacity - 1)); 
+    return Iterator(m_Data,  m_Capacity, m_Head); 
   }
   Const_Iterator begin() const {
-    return Const_Iterator(m_Data,  m_Capacity, (m_Head + 1) & (m_Capacity - 1));
+    return Const_Iterator(m_Data,  m_Capacity, m_Head);
   }
   Const_Iterator cbegin() const {
-    return Const_Iterator(m_Data,  m_Capacity, (m_Head + 1) & (m_Capacity - 1));
+    return Const_Iterator(m_Data,  m_Capacity, m_Head);
   }
   Iterator end() {
-    return Iterator(m_Data,  m_Capacity, (m_Tail+ 1) & (m_Capacity - 1));
+    return Iterator(m_Data,  m_Capacity, m_Tail);
   }
   Const_Iterator end() const {
-    return Const_Iterator(m_Data,  m_Capacity, (m_Tail+ 1) & (m_Capacity - 1));
+    return Const_Iterator(m_Data,  m_Capacity, m_Tail);
   }
   Const_Iterator cend() const {
-    return Const_Iterator(m_Data,  m_Capacity, (m_Tail+ 1) & (m_Capacity - 1));
+    return Const_Iterator(m_Data,  m_Capacity, m_Tail);
   }
 
-  static const size_t DEFAULT_CAP = 128;
+  static constexpr size_t DEFAULT_CAP = 128;
 
   // *************************************************************************
   // RULE OF FIVE 
@@ -188,11 +186,12 @@ class RingBuffer {
   // assignment
   RingBuffer& operator=(const RingBuffer& other) {
     if(this !=  &other) {
+      delete[] m_Data;
       m_Data = new T[other.m_Capacity];
       m_Capacity = other.m_Capacity;
       m_Head = other.m_Head;
       m_Tail = other.m_Head;
-      m_Size = 0;
+      m_Size = 0uz;
       
       for(auto val : other) {
         push_back(val);
@@ -233,15 +232,28 @@ class RingBuffer {
     m_Size--;
   }
   void push_front(T val) {
-    m_Head--;
+    if(m_Size == 0) {
+      ++m_Tail;
+      ++m_Size;
+    } else if(m_Size == m_Capacity) {
+      --m_Tail;
+      --m_Head;
+    } else {
+      ++m_Size;
+      --m_Head;
+    }
+
     m_Data[head()] = val;
-    m_Size += m_Size < m_Capacity;
   }
 
   void push_back(T val) {
-    m_Tail++;
     m_Data[tail()] = val;
-    m_Size += m_Size < m_Capacity;
+    m_Tail++;
+    if(m_Size == m_Capacity) {
+      m_Head++;
+    } else {
+      m_Size++;
+    }
   }
 
   T& front() noexcept {
@@ -253,11 +265,11 @@ class RingBuffer {
   }
 
   T& back() noexcept {
-    return m_Data[tail()];
+    return m_Data[(m_Tail - 1) & (m_Capacity - 1)];
   }
   
   const T& back() const noexcept {
-    return m_Data[tail()];
+    return m_Data[(m_Tail - 1) & (m_Capacity - 1)];
   }
 
   const T& operator[](size_t where) const noexcept {

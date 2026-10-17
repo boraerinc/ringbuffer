@@ -10,6 +10,21 @@ void printRingBuffer(const RingBuffer<T>& rb) {
   std::cout << std::endl;
 }
 
+template<typename T>
+void printRingBufferNonConst(RingBuffer<T>& rb) {
+  for(const auto& val : rb) {
+    std::cout << val << ' ';
+  }
+  std::cout << std::endl;
+}
+
+template<typename T>
+void setValuesToZero(RingBuffer<T>& rb) {
+  for(auto& val : rb) {
+    val = 0;
+  }
+}
+
 int main() {
   // Test 1 default capacity should be DEFAULT_CAP, size 0
   RingBuffer<int> values{};
@@ -116,15 +131,22 @@ int main() {
   for(int i{}; i < 129; ++i) {
     forwardwrap.push_back(i);
   }
-  assert(forwardwrap[0] == 128);
+  assert(forwardwrap[0] == 1);
+  assert(forwardwrap.back() == 128);
   assert(forwardwrap.size() == 128);
   RingBuffer<int> backwrap{};
 
   for(int i{}; i < 129; ++i) {
     backwrap.push_front(i);
   }
-  assert(backwrap[0] == 128);
+  assert(backwrap.back() == 1);
   assert(backwrap.size() == 128);
-    
+
+  //Test 13 NonConst Iterator:
+  printRingBufferNonConst(newValues);
+
+  //Test 14 Modifying iterator
+  setValuesToZero(newValues);
+  printRingBufferNonConst(newValues);
 
 }
